@@ -40,9 +40,7 @@ public class BlockNested extends Join{
     boolean eosl;  // Whether end of stream (left table) is reached
     boolean eosr;  // End of stream (right table)
     
-    
-    
-    
+   
     public BlockNested(Join jn){
         super(jn.getLeft(),jn.getRight(),jn.getCondition(),jn.getOpType());
         schema = jn.getSchema();
@@ -63,6 +61,7 @@ public class BlockNested extends Join{
         
         /** select number of buffers per outerblock **/
         outblockSize = numBuff - 2;
+        leftblock = new Vector<Batch>(outblockSize);
         
         Attribute leftattr = con.getLhs();
         Attribute rightattr =(Attribute) con.getRhs();
@@ -114,36 +113,44 @@ public class BlockNested extends Join{
     }
     
     public Batch next() {
-        
-        if(eosl){
+        int i, j, k;
+        if(eosl && lbuffer == 0 && lcurs == 0 && rcurs == 0){
             close();
             return null;
         }
         outbatch = new Batch(batchsize);
         
         while (!outbatch.isFull()) {
-            if (lbuffer==0 && eosr== true) {
-                /** new left block is to be fetched **/
-                leftblock.clear(); // remove current content in buffer
-                while (!(leftblock.size() == outblockSize)) {
-                    leftblock.add((Batch) left.next());
-                }
-            }
-            if (leftblock.isEmpty()) {
-                eosl = true;
-                return outbatch;
-            }
             
-            /** Whenver a new left block came , we have to start the
-             ** scanning of right table
-             **/
-            try {               
-                in = new ObjectInputStream(new FileInputStream(rfname));
-                eosr=false;
-            } catch(IOException io){
-                System.err.println("BlockNestedJoin:error in reading the file");
-                System.exit(1);
-            }
+            if (lbuffer==0 && lcurs == 0 && eosr== true) {//the current left block and inner block has been fully processed
+                /** new left block is to be fetched **/
+                
+                leftblock.clear(); // remove current content in buffer
+                while (leftblock.size() != outblockSize) { 
+                    Batch toAdd = (Batch) left.next();
+                    if (toAdd == null) {
+                        eosl = true;
+                        break;
+                    } else {
+                        leftblock.add(toAdd);
+                    }
+                }
+                if (leftblock.isEmpty()) {
+                    eosl = true;
+                    return outbatch;
+                }
+                /** Whenver a new left block came , we have to start the
+                 ** scanning of right table
+                 **/
+                try {               
+                    in = new ObjectInputStream(new FileInputStream(rfname));
+                    eosr=false;
+                } catch(IOException io){
+                    System.err.println(io.getMessage());
+                    System.err.println("BlockNestedJoin:error in reading the file");
+                    System.exit(1);
+                }
+            }      
             
             while (eosr == false) {
                 try {
@@ -151,31 +158,30 @@ public class BlockNested extends Join{
                         rightbatch = (Batch) in.readObject();
                     }
                     
-                    for (int i = lbuffer; i < leftblock.size(); i++) {
+                    for (i = lbuffer; i < leftblock.size(); i++) {
                         Batch leftbatch = leftblock.get(i);                        
-                        for (int j = lcurs; j < leftbatch.size(); j++) {
-                            for (int k = lcurs; k < rightbatch.size(); k++) {
+                        for (j = lcurs; j < leftbatch.size(); j++) {
+                            for (k = rcurs; k < rightbatch.size(); k++) {
                                 Tuple lefttuple = leftbatch.elementAt(j);
                                 Tuple righttuple = rightbatch.elementAt(k);
                                 if (lefttuple.checkJoin(righttuple, leftindex, rightindex)) {
                                     Tuple outtuple = lefttuple.joinWith(righttuple);
-                                
-                                
+                                                              
                                     outbatch.add(outtuple);
                                     if (outbatch.isFull()) {
-                                        if (k != rightbatch.size()-1) {//case 1: inner loop not completed
+                                        if (k < rightbatch.size()-1) {//case 1: inner loop not completed
                                             lbuffer = i;
                                             lcurs = j;
                                             rcurs = k+1;
-                                        } else if (j != leftbatch.size()-1){ //case 2: current leftbatch not completed;
+                                        } else if (j < leftbatch.size()-1){ //case 2: current leftbatch not completed;
                                             lbuffer = i;
                                             lcurs = i+1;
                                             rcurs = 0;
-                                        }else if(i != leftblock.size()-1){//case 3: left block have unprocessed buffer
+                                        } else if(i < leftblock.size()-1){//case 3: left block have unprocessed buffer
                                             lbuffer = i+1;
                                             lcurs = 0;
                                             rcurs = 0;
-                                        }else{// case 4: left block completed
+                                        } else {// case 4: left block completed
                                             lbuffer = 0;
                                             lcurs = 0;
                                             rcurs = 0;
@@ -184,8 +190,11 @@ public class BlockNested extends Join{
                                     }
                                 }
                             }
+                            rcurs = 0;
                         }
+                        lcurs = 0;
                     }
+                    lbuffer = 0;
                 } catch(EOFException e){
                     try{
                     in.close();
