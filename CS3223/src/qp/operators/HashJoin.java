@@ -274,7 +274,7 @@ public class HashJoin extends Join{
 					        //check whether the bucket is full; if yes, stop reading, matching right table tuples first,store rest of non-partitioned left table tuples in original file
 					        if(in_memory_ht[key].size() >= left_batchsize){
 					        	eosl = false;
-					        	String tempFile = "tempFile";
+					        	String tempFile = "tempFile" + this.hashcode();
 					        	ObjectOutputStream temp = new ObjectOutputStream(new FileOutputStream(tempFile));
 					        	//write the rest tuples in current input buffer back
 					        	if(lcurs <= inputbatch.size() - 1){
