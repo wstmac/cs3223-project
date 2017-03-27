@@ -380,39 +380,7 @@ public class HashJoin extends Join{
 	    Tuple righttuple;
 	    int key;
 	    Batch curr_bucket;
-	    /*
-	    for(int j = rcurs ; j < inputbatch_right.size(); j++){
-	    	righttuple = inputbatch_right.elementAt(rcurs);
-	    	key = ((righttuple.dataAt(rightindex).hashCode())*17 + 37)%(numBuff-2);
-	    	if(lcurs == 0){
-	    		curr_bucket = in_memory_ht[key];
-	    		if(curr_bucket.isEmpty()) continue;
-	    	}
-	    	for(int n = lcurs; n < curr_bucket.size(); n++){
-	    		lefttuple = curr_bucket.elementAt(n);
-	    		if(lefttuple.checkJoin(righttuple,leftindex,rightindex)){
-					Tuple outtuple = lefttuple.joinWith(righttuple);
-					System.out.println("matching: " + outtuple.data());
-					outbatch.add(outtuple);
-					if(outbatch.isFull()){
-						//have not finish the left table bucket
-						if(lcurs != curr_bucket.size() - 1){
-							lcurs = n++;
-							rcurs = j;
-						}
-						//finish the current left table bucket but not finish the right table page
-						else if(j != inputbatch_right.size() - 1){
-							lcurs = 0;
-							rcurs = j++;
-						}
-						else if()
-					}
-				}
-	    	}
-	    	
 
-	    }
-	    */
 	    while(rcurs < inputbatch_right.size() ){
 	    	righttuple = inputbatch_right.elementAt(rcurs);
 	    	key = Integer.valueOf(String.valueOf(righttuple.dataAt(rightindex)))%(numBuff-2);
@@ -444,7 +412,6 @@ public class HashJoin extends Join{
 				try{
 					inputbatch_right = (Batch)in_right.readObject();
 					while(inputbatch_right == null || inputbatch_right.isEmpty()) {
-						System.out.println("here");
 						inputbatch_right = (Batch)in_right.readObject();
 					}
 					eosr = false;
