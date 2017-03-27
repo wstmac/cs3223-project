@@ -325,7 +325,9 @@ public class HashJoin extends Join{
 				        try{
 				        		
 				        	inputbatch_right = (Batch)in_right.readObject();//handle the case if the partition is empty
-				        	while(inputbatch_right == null || inputbatch_right.size() == 0) inputbatch_right = (Batch)in_right.readObject();
+				        	while(inputbatch_right == null || inputbatch_right.size() == 0) {
+				        		inputbatch_right = (Batch)in_right.readObject();
+				        	}
 				        	eosr = false;
 				        }catch(IOException io){
 				        	//end of the right table
@@ -420,9 +422,10 @@ public class HashJoin extends Join{
 	    		lefttuple = curr_bucket.elementAt(lcurs++);
 			    if(lefttuple.checkJoin(righttuple,leftindex,rightindex)){
 					Tuple outtuple = lefttuple.joinWith(righttuple);
-					System.out.println("matching: " + outtuple.data());
+					//System.out.println("matching: " + outtuple.data());
 					outbatch.add(outtuple);
 					if(outbatch.isFull()){
+						System.out.println("here returning full batch");
 						Batch result  = outbatch;
 						outbatch = new Batch(batchsize);
 					    return result;
@@ -440,7 +443,10 @@ public class HashJoin extends Join{
 				lcurs = 0;
 				try{
 					inputbatch_right = (Batch)in_right.readObject();
-					while(inputbatch_right == null || inputbatch_right.isEmpty()) inputbatch_right = (Batch)in_right.readObject();
+					while(inputbatch_right == null || inputbatch_right.isEmpty()) {
+						System.out.println("here");
+						inputbatch_right = (Batch)in_right.readObject();
+					}
 					eosr = false;
 				
 				}catch(IOException io){
@@ -467,7 +473,6 @@ public class HashJoin extends Join{
 
     /** Close the operator */
     public boolean close(){
-
     	for(int i = 0; i < numBuff -1;i++){
     		String right_fname = "HJtempRight-" + String.valueOf(i) + this.hashCode();
     		String left_fname = "HJtempLeft-" + String.valueOf(i) + this.hashCode();
@@ -476,7 +481,6 @@ public class HashJoin extends Join{
     		f = new File(left_fname);
     		f.delete();
     	}
-
 	return true;
 
     }
