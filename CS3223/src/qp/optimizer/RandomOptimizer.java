@@ -180,6 +180,9 @@ public class RandomOptimizer{
 	Join node = (Join) findNodeAt(root,joinNum);
 	int prevJoinMeth = node.getJoinType();
 	int joinMeth = RandNumb.randInt(0,numJMeth-1);
+	if(joinMeth==2||joinMeth==3){
+		joinMeth=4;
+	}
 	while(joinMeth == prevJoinMeth){
 	    joinMeth = RandNumb.randInt(0,numJMeth-1);
 	}

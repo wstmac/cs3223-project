@@ -206,13 +206,21 @@ public class DynamicOptimizer {
 					type = JoinType.NESTEDJOIN;
 				}
 	
-				newJoin.setJoinType(JoinType.HASHJOIN);
+				newJoin.setJoinType(JoinType.INDEXNESTED);
 				pc = new PlanCost();
 				curCost = pc.getCost(newJoin);
 				if (curCost < plancost) {
 					plancost = curCost;
-					type = JoinType.HASHJOIN;
+					type = JoinType.INDEXNESTED;
 				}
+
+				// newJoin.setJoinType(JoinType.HASHJOIN);
+				// pc = new PlanCost();
+				// curCost = pc.getCost(newJoin);
+				// if (curCost < plancost) {
+				// 	plancost = curCost;
+				// 	type = JoinType.HASHJOIN;
+				// }
 	
 //				newJoin.setJoinType(JoinType.SORTMERGE);
 //				pc = new PlanCost();
