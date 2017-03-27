@@ -91,6 +91,14 @@ public class DynamicOptimizer {
 				bj.setNumBuff(numbuff);
 				/* + other code */
 				return bj;
+				
+			case JoinType.INDEXNESTED:
+				
+				IndexNested in = new IndexNested((Join) node);
+				in.setLeft(left);
+				in.setRight(right);
+				in.setNumBuff(numbuff);
+				return in;
 	
 			case JoinType.SORTMERGE:
 	

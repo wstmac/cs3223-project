@@ -120,9 +120,9 @@ public class QueryMain{
 	    execution plan
 		 **/
 
-
+		System.out.println("numJoin is: "+numJoin);
 		Operator root = null;
-		if (numJoin > 1) {// DynamicProgrammingOptimizer
+		if (numJoin > 0) {// DynamicProgrammingOptimizer
 			DynamicOptimizer dynamicOptimizer = new DynamicOptimizer(
 					sqlquery);
 			Operator logicalroot = dynamicOptimizer.getOptimalPlan();
