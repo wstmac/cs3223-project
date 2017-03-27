@@ -180,6 +180,9 @@ public class RandomOptimizer{
 	Join node = (Join) findNodeAt(root,joinNum);
 	int prevJoinMeth = node.getJoinType();
 	int joinMeth = RandNumb.randInt(0,numJMeth-1);
+	if(joinMeth==2||joinMeth==3){
+		joinMeth=4;
+	}
 	while(joinMeth == prevJoinMeth){
 	    joinMeth = RandNumb.randInt(0,numJMeth-1);
 	}
@@ -416,8 +419,11 @@ public class RandomOptimizer{
 
 	    case JoinType.BLOCKNESTED:
 
-		NestedJoin bj = new NestedJoin((Join) node);
+		BlockNested bj = new BlockNested((Join) node);
                 /* + other code */
+		bj.setLeft(left);
+		bj.setRight(right);
+		bj.setNumBuff(numbuff);
 		return bj;
 
 	    case JoinType.SORTMERGE:
