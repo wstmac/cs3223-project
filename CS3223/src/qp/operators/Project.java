@@ -102,10 +102,10 @@ public class Project extends Operator{
 	    Tuple basetuple = inbatch.elementAt(i);
 	    //Debug.PPrint(basetuple);
 	    //System.out.println();
-	    Vector<Attribute> present = new Vector<Attribute>();
+	    Vector<Object> present = new Vector<Object>();
 	    for(int j=0;j<attrSet.size();j++){
 		Object data = basetuple.dataAt(attrIndex[j]);
-		present.add((Attribute) data);
+		present.add((Object) data);
 	    }
 	    Tuple outtuple = new Tuple(present);
 	    outbatch.add(outtuple);

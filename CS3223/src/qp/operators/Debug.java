@@ -88,7 +88,7 @@ public class Debug{
 		System.out.print("HashJoin(");
 		break;
 	    case JoinType.INDEXNESTED:
-	    System.out.print("IndexNested(");
+	    System.out.print("IndexNestedJoin(");
 	    }
 	    //System.out.print("Join(");
 	    PPrint(((Join)node).getLeft());

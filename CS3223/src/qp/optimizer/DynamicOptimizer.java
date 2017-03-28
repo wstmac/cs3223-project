@@ -18,8 +18,8 @@ public class DynamicOptimizer {
 	Vector<Map<Set<String>, Operator>> planSpace;
 
 	public DynamicOptimizer(SQLQuery sqlquery) {
-		DynamicOptimizer.sqlquery = sqlquery;
-		this.numTable = DynamicOptimizer.sqlquery.getFromList().size();
+		this.sqlquery = sqlquery;
+		this.numTable = this.sqlquery.getFromList().size();
 		planSpace = new Vector<Map<Set<String>, Operator>>(this.numTable);
 		for (int i = 0; i < this.numTable; i++) {
 			Map<Set<String>, Operator> map = new HashMap<Set<String>, Operator>();
@@ -33,8 +33,8 @@ public class DynamicOptimizer {
 		// find the plan for subset where |s|=1
 		for (int i = 0; i < numTable; i++) {
 			Set<String> tableName = new HashSet<String>();
-			tableName.add((String) DynamicOptimizer.sqlquery.getFromList().elementAt(i));
-			root = createInitialOperator((String) DynamicOptimizer.sqlquery.getFromList().elementAt(i));
+			tableName.add((String) this.sqlquery.getFromList().elementAt(i));
+			root = createInitialOperator((String) this.sqlquery.getFromList().elementAt(i));
 			planSpace.elementAt(0).put(tableName, root);
 		}
 		
@@ -52,14 +52,35 @@ public class DynamicOptimizer {
 					tableNames.add(curSubsetArray[k]);
 				}
 				planSpace.elementAt(i).put(tableNames, curRoot);
-				if(i==numTable-1){
-					return curRoot;
-				}
 			}
 		}
-		return root;
+		return createProjectOp(getLastRoot());
 	}
 	
+	private Operator getLastRoot(){
+		Set<String> tables = new HashSet<String>();
+		for (int i = 0; i < this.sqlquery.getFromList().size(); i++) {
+			tables.add((String) this.sqlquery.getFromList().elementAt(i));
+		}
+		return planSpace.elementAt(numTable - 1).get(tables);
+	}
+	
+	private Operator createProjectOp(Operator root){
+		Vector<Attribute> projectlist = (Vector<Attribute>) sqlquery.getProjectList();
+		Operator newRoot = null;
+		if (projectlist != null && !projectlist.isEmpty()) {
+		    newRoot = new Project(root, projectlist, OpType.PROJECT);
+		    Schema newSchema = root.getSchema().subSchema(projectlist);
+		    newRoot.setSchema(newSchema);
+		}
+		if (newRoot != null) {
+			//System.out.println("inside new root");
+			return newRoot;
+		} else {
+			//System.out.println("notinside new root");
+			return root;
+		}
+	}
 	
 	/** AFter finding a choice of method for each operator
 	prepare an execution plan by replacing the methods with
@@ -109,7 +130,9 @@ public class DynamicOptimizer {
 			case JoinType.HASHJOIN:
 	
 				NestedJoin hj = new NestedJoin((Join) node);
-				/* + other code */
+				hj.setLeft(left);
+				hj.setRight(right);
+				hj.setNumBuff(numbuff);
 				return hj;
 			default:
 				return node;
@@ -128,13 +151,12 @@ public class DynamicOptimizer {
 	}
 	
 	//create scan and select operator for subset s where |s|=1
-	public Operator createInitialOperator(String tabName) {
+	private Operator createInitialOperator(String tableName) {
 		// create scan operator
-		Scan tempop = null;
 		Operator root = null;
-		Scan op1 = new Scan(tabName, OpType.SCAN);
-		tempop = op1;
-		String filename = tabName + ".md";
+		Scan op1 = new Scan(tableName, OpType.SCAN);
+		Scan tempop = op1;
+		String filename = tableName + ".md";
 		try {
 			ObjectInputStream _if = new ObjectInputStream(new FileInputStream(filename));
 			Schema schm = (Schema) _if.readObject();
@@ -148,10 +170,13 @@ public class DynamicOptimizer {
 	
 		// create select operator
 		Select op2 = null;
-		for (int j = 0; j < DynamicOptimizer.sqlquery.getSelectionList().size(); j++) {
-			Condition cn = (Condition) DynamicOptimizer.sqlquery.getSelectionList().elementAt(j);
+		for (int j = 0; j < this.sqlquery.getSelectionList().size(); j++) {
+			//System.out.println("inside select op");
+			Condition cn = (Condition) this.sqlquery.getSelectionList().elementAt(j);
 			if (cn.getOpType() == Condition.SELECT) {
-				if (tabName == cn.getLhs().getTabName()) {
+				//System.out.println("table name is: "+tabName+" cnLhsName is: "+cn.getLhs().getTabName());
+				if (tableName.equals(cn.getLhs().getTabName())) {
+					System.out.println("create select op");
 					op2 = new Select(op1, cn, OpType.SELECT);
 					op2.setSchema(tempop.getSchema());
 					root = op2;
@@ -162,7 +187,7 @@ public class DynamicOptimizer {
 	}
 	
 	// / find the best plan for one subset
-	public Operator getBestPlan(String[] subset) {
+	private Operator getBestPlan(String[] subset) {
 		int size = subset.length;
 		int bestPlanCost = Integer.MAX_VALUE;
 		Operator curRoot = null;
@@ -185,7 +210,7 @@ public class DynamicOptimizer {
 				continue;
 			}
 
-			condition = getJoinCondition(preRoot, oneTable, size-1);
+			condition = getJoinCondition(preRoot, oneTable);
 			int plancost;
 			PlanCost pc = new PlanCost();
 			if (condition != null) {
@@ -222,13 +247,13 @@ public class DynamicOptimizer {
 					type = JoinType.INDEXNESTED;
 				}
 
-				// newJoin.setJoinType(JoinType.HASHJOIN);
-				// pc = new PlanCost();
-				// curCost = pc.getCost(newJoin);
-				// if (curCost < plancost) {
-				// 	plancost = curCost;
-				// 	type = JoinType.HASHJOIN;
-				// }
+				 newJoin.setJoinType(JoinType.HASHJOIN);
+				 pc = new PlanCost();
+				 curCost = pc.getCost(newJoin);
+				 if (curCost < plancost) {
+				 	plancost = curCost;
+				 	type = JoinType.HASHJOIN;
+				 }
 	
 //				newJoin.setJoinType(JoinType.SORTMERGE);
 //				pc = new PlanCost();
@@ -254,17 +279,15 @@ public class DynamicOptimizer {
 		return curRoot;
 	}
 	
-	// / return left deep tree
-	public Condition getJoinCondition(Operator lastroot, Set<String> singleTableSet, int level) {
-		for (int i = 0; i < DynamicOptimizer.sqlquery.getJoinList().size(); i++) {
-			Condition con = (Condition) DynamicOptimizer.sqlquery.getJoinList().elementAt(i);
+	//get left deep tree
+	private Condition getJoinCondition(Operator preRoot, Set<String> oneTable) {
+		for (int i = 0; i < this.sqlquery.getJoinList().size(); i++) {
+			Condition con = (Condition) this.sqlquery.getJoinList().elementAt(i);
 			Attribute leftjoinAttr = con.getLhs();
 			Attribute rightjoinAttr = (Attribute) con.getRhs();
-			if ((lastroot.getSchema().contains(leftjoinAttr)
-					&& (planSpace.elementAt(0).get(singleTableSet).getSchema().contains(rightjoinAttr)))) {
+			if ((preRoot.getSchema().contains(leftjoinAttr) && (planSpace.elementAt(0).get(oneTable).getSchema().contains(rightjoinAttr)))) {
 				return (Condition) con.clone();
-			} else if (lastroot.getSchema().contains(rightjoinAttr)
-					&& planSpace.elementAt(0).get(singleTableSet).getSchema().contains(leftjoinAttr)) {
+			} else if (preRoot.getSchema().contains(rightjoinAttr) && planSpace.elementAt(0).get(oneTable).getSchema().contains(leftjoinAttr)) {
 				Condition newCon = (Condition) con.clone();
 				newCon.setRhs((Attribute) leftjoinAttr.clone());
 				newCon.setLhs((Attribute) rightjoinAttr.clone());
@@ -274,16 +297,25 @@ public class DynamicOptimizer {
 		return null;
 	}
 	
-	// / find all subsets with the specified subset size
-	public Map<Integer, Set<String>> getAllSubsets(int cardinality) {
+	//find all subset sub where |sub|=size, find all possible combination of subset where |sub|=size
+	/**
+	 * For a given subset S and |S|=Size, it has 2^Size subset, including empty set and itself. Can be also represented by binary representation.
+	 * For the binary representation, there are 00000...00 total Size bit. If at one position the number is 0, then means we do not use that table;
+	 * if is one, means we will use that table.
+	 * Thus, if we want to find all possible subset sub where |sub|=size, we just need to find all possible binary combination, where the total ones equals to size.
+	 * This is the basic idea of find all possible subset of size "size".
+	 * @param size
+	 * @return all possible subset
+	 */
+	private Map<Integer, Set<String>> getAllSubsets(int size) {
 		Map<Integer, Set<String>> map = new HashMap<Integer, Set<String>>();
-		int numOfTable = sqlquery.getFromList().size();
-		int i, j, numOfSubset = (int) Math.pow(2, numOfTable);
+		int i, j;
+		int totalNumOfSubset = (int) Math.pow(2, this.numTable);
 		int key = 0;
-		for (i = 0; i < numOfSubset; i++) {
-			if (cardinality == countNumOfOnes(i)) {
+		for (i = 0; i < totalNumOfSubset; i++) {
+			if (size == countNumOfOnes(i)) {//one possible subset
 				Set<String> set = new HashSet<String>();
-				for (j = 0; j < numOfTable; j++) {
+				for (j = 0; j < this.numTable; j++) {//find the corresponding table name and add into the hashset
 					if ((i & (1 << j)) != 0)
 						set.add((String) sqlquery.getFromList().get(j));
 				}
@@ -294,14 +326,15 @@ public class DynamicOptimizer {
 		return map;
 	}
 
-// /count no. of one's when n is represented in binary
-	public int countNumOfOnes(int n) {
-		int num = 0;
-		while (n != 0) {
-			if ((n & 1) != 0)
-				num++;
-			n >>= 1;
+	//count number of ones in binary representation. eg: integer 5 is 101 so the total number of ones is 2.
+	private int countNumOfOnes(int i) {
+		int totalNumOfOnes = 0;
+		while (i != 0) {
+			if ((i & 1) != 0){
+				totalNumOfOnes++;
+			}
+			i >>= 1;
 		}
-		return num;
+		return totalNumOfOnes;
 	}
 }
