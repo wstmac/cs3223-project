@@ -51,21 +51,22 @@ public class HashJoin extends Join{
 
 
     /** During open finds the index of the join attributes
-     **  Finish the partition phase: partition right table into numBuff - 1 partitions then left table
+     ** Finish the partition phase: partition right and left table into numBuff - 1 partitions
      **  
      **/
 
 
 
     public boolean open(){
-
-		/** select number of tuples per batch **/
 		int tuplesize=schema.getTupleSize();
+		//num tuples per batch for result table
 		batchsize=Batch.getPageSize()/tuplesize;
 		int right_tupleSize = right.getSchema().getTupleSize();
-		right_batchsize = Batch.getPageSize()/right_tupleSize;//num tuples per batch for right table
+		//num tuples per batch for right table
+		right_batchsize = Batch.getPageSize()/right_tupleSize;
 		int left_tupleSize = right.getSchema().getTupleSize();
-		left_batchsize = Batch.getPageSize()/left_tupleSize;//num tuples per batch for left table
+		//num tuples per batch for left table
+		left_batchsize = Batch.getPageSize()/left_tupleSize;
 
 		//index of join attributes
 	Attribute leftattr = con.getLhs();
@@ -98,7 +99,8 @@ public class HashJoin extends Join{
 	    	    String fname =  "HJtempRight-" + String.valueOf(i) + this.hashCode();
 	    	    outStream_right[i] = new ObjectOutputStream(new FileOutputStream(fname));
 	    	}
-	    	
+	    	//hash each right table page until the end of right table
+	    	//whenever each bucket is full, write into file
 	    	while( (inputpage = right.next()) != null){
 	    		for(int i = 0; i < inputpage.size();i++){
 	    			//hash each tuple in input right page
@@ -120,7 +122,7 @@ public class HashJoin extends Join{
 	    		}
 	    	}
 	    	
-	    	//close output stream
+	    	//close output stream for each buckets
 	    	for(int i = 0; i < numBuff -1 ;i++){
 	    		outStream_right[i].close();
 	    	}
@@ -148,7 +150,9 @@ public class HashJoin extends Join{
 	    		String fname = "HJtempLeft-" + String.valueOf(i)+ this.hashCode();
 	    		outStream_left[i] = new ObjectOutputStream(new FileOutputStream(fname));
 	    	}
-    	
+	    	
+	    	//hash each right table page until the end of right table
+	    	//whenever each bucket is full, write into file
 	    	while( (inputpage = left.next()) != null){
 	    		for(int i = 0; i < inputpage.size();i++){
 	    			Tuple t = inputpage.elementAt(i);
@@ -169,7 +173,7 @@ public class HashJoin extends Join{
 	    		}
 	    	}
     	
-	    	//close output stream
+	    	//close output stream for each bucket
 	    	for(int i = 0; i < numBuff -1 ;i++){
 	    		outStream_left[i].close();
 	    	}
@@ -268,7 +272,7 @@ public class HashJoin extends Join{
 					        		break;
 					        	}	
 					        }
-					        //using a different hf
+					        //using a different hf to build in-memory hash table
 					        key = Integer.valueOf(String.valueOf(inputbatch.elementAt(inputindex).dataAt(leftindex)))%(numBuff-2);
 
 					        //check whether the bucket is full; if yes, stop reading, matching right table tuples first,store rest of non-partitioned left table tuples in original file
@@ -296,6 +300,7 @@ public class HashJoin extends Join{
 					        		File f = new File(in_lfname);
 					        		f.delete();	
 					        	}
+					        	//write the rest left table pages in temp file back to original left table partition file
 					        	ObjectOutputStream out_left = new ObjectOutputStream(new FileOutputStream(in_lfname));
 					        	ObjectInputStream temp_in = new ObjectInputStream(new FileInputStream(tempFile));
 					        	try{
@@ -322,8 +327,7 @@ public class HashJoin extends Join{
 				        }//finish hashing one left table partition into in-memory ht
 
 				        //load the right table page for matching
-				        try{
-				        		
+				        try{		
 				        	inputbatch_right = (Batch)in_right.readObject();//handle the case if the partition is empty
 				        	while(inputbatch_right == null || inputbatch_right.size() == 0) {
 				        		inputbatch_right = (Batch)in_right.readObject();
@@ -351,38 +355,17 @@ public class HashJoin extends Join{
 					}  		    
 				}
 			}//finish starting a new round
-		/*
-		if(rcurs >= inputbatch_right.size()){
-			//load a new right table page
-			rcurs = 0;
-			lcurs = 0;
-			try{
-				inputbatch_right = (Batch)in_right.readObject();
-				while(inputbatch_right == null || inputbatch_right.isEmpty()) inputbatch_right = (Batch)in_right.readObject();
-				eosr = false;
-			}catch(IOException io){
-				//reach end of right table partition
-				eosr = true;
-				try{
-					in_right.close();
-				}catch(IOException io1){
-					System.out.println("HashJoin:error in closing file");
-				}
-				continue;
-			} catch (ClassNotFoundException e) {
-			    System.out.println("HashJoin:Some error in deserialization ");
-			    System.exit(1);
-			}	
-		}
-		*/
+
 		//generate result tuple
 	    Tuple lefttuple;
 	    Tuple righttuple;
 	    int key;
 	    Batch curr_bucket;
 
+	    //hash each right table tuple, match with the existing left table tuples in the bucket
 	    while(rcurs < inputbatch_right.size() ){
 	    	righttuple = inputbatch_right.elementAt(rcurs);
+	    	//hash the right table tuple using the second hash function
 	    	key = Integer.valueOf(String.valueOf(righttuple.dataAt(rightindex)))%(numBuff-2);
 	    	curr_bucket = in_memory_ht[key];
 	    	while(lcurs < curr_bucket.size()){
@@ -393,18 +376,20 @@ public class HashJoin extends Join{
 					//System.out.println("matching: " + outtuple.data());
 					outbatch.add(outtuple);
 					if(outbatch.isFull()){
-						System.out.println("here returning full batch");
+						//System.out.println("here returning full batch");
 						Batch result  = outbatch;
 						outbatch = new Batch(batchsize);
 					    return result;
 					}
 				}    
 	    	}
-	    	//finish with current right table tuple
+	    	//for current right tuple, finish matching with all left bucket tuples
 	    	if(lcurs >= curr_bucket.size()){
+	    		//move on to next right tuple, reset lcurs to 0
 	    		rcurs++;
 	    		lcurs = 0;
 	    	}
+	    	//finish the current right table page, need to load a new page into buffer
 	    	if(rcurs >= inputbatch_right.size()){
 				//load a new right table page
 				rcurs = 0;
@@ -440,6 +425,7 @@ public class HashJoin extends Join{
 
     /** Close the operator */
     public boolean close(){
+    	//delete all the temp file 
     	for(int i = 0; i < numBuff -1;i++){
     		String right_fname = "HJtempRight-" + String.valueOf(i) + this.hashCode();
     		String left_fname = "HJtempLeft-" + String.valueOf(i) + this.hashCode();
