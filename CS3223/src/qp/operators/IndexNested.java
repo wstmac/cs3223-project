@@ -22,7 +22,6 @@ public class IndexNested extends Join{
     Batch outbatch;   // Output buffer
     Batch leftbatch;  // Buffer for left input stream
     Vector<Tuple> rightMatches; //matching tuples in right table, for a given lefttuple
-    ObjectInputStream in; // File pointer to the right hand materialized file
 
     int lcurs;    // Cursor for left side buffer
     int rcurs;    //Cursor for right side matching records
@@ -65,10 +64,11 @@ public class IndexNested extends Join{
         } else{    
             rightTable = new HashIndex();
             rcurs = 0;
+            rightTable.setAttribute(rightindex);
             while((rightpage = right.next()) != null){
-                rightTable.setAttribute(rightindex);
                 rightTable.load(rightpage);
             }
+            rightMatches = new Vector<Tuple>();
         }
         if(left.open())
             return true;
@@ -90,19 +90,18 @@ public class IndexNested extends Join{
      
         while (!outbatch.isFull()){
                          
-            if (rcurs != 0) {//add previous found matching tuples from right table
+            if (rcurs != 0) {//add previously found matching tuples from right table
                 Tuple currlefttuple = leftbatch.elementAt(lcurs); 
                 for (int k = rcurs; k < rightMatches.size(); k++) {
                     Tuple righttuple = rightMatches.elementAt(k);
-                    if(currlefttuple.checkJoin(righttuple,leftindex,rightindex)) {
-                        Tuple outtuple = currlefttuple.joinWith(rightMatches.get(k));
+                    if (currlefttuple.checkJoin(righttuple,leftindex,rightindex)) {
+                        Tuple outtuple = currlefttuple.joinWith(rightMatches.elementAt(k));
                         outbatch.add(outtuple);                 
                         if(outbatch.isFull()){
                             if(k == rightMatches.size()-1){//case 1:  all matching tuples aded
                                 rcurs=0;
-                                rightMatches.clear();
                                 lcurs = (lcurs + 1) % leftbatch.size();
-                            } else { //case 3: some matching tuples in right table not added 
+                            } else { //case 2: some matching tuples in right table not added 
                                 rcurs = k+1;
                             }
                             return outbatch;
@@ -110,7 +109,6 @@ public class IndexNested extends Join{
                     }                  
                 }
                 rcurs = 0;
-                rightMatches.clear(); 
                 lcurs = (lcurs + 1) % leftbatch.size();
             }
             
@@ -126,22 +124,17 @@ public class IndexNested extends Join{
             for (int i = lcurs; i < leftbatch.size(); i++) {
                 Tuple lefttuple = leftbatch.elementAt(i);
                 rightMatches = rightTable.get(lefttuple.dataAt(leftindex));
-                if (rightMatches != null) {
-                    for (int j = 0; j < rightMatches.size(); j++) {
+                if (rightMatches != null && !rightMatches.isEmpty()) {
+                    for (int j = rcurs; j < rightMatches.size(); j++) {
                         Tuple righttuple = rightMatches.elementAt(j);
                         if(lefttuple.checkJoin(righttuple,leftindex,rightindex)) {
-                            Tuple outtuple = lefttuple.joinWith(rightMatches.get(j));
+                            Tuple outtuple = lefttuple.joinWith(rightMatches.elementAt(j));
                             outbatch.add(outtuple);
                             
                             if(outbatch.isFull()){
-                                if(i==leftbatch.size()-1 && j == rightMatches.size()-1){//case 1: current left batch in buffer is fully processed and all matching tuples aded
-                                    lcurs=0;
+                                if(j == rightMatches.size()-1){//case 1: all matching tuples added
+                                    lcurs= (i+1) % leftbatch.size();
                                     rcurs=0;
-                                    rightMatches.clear();
-                                }else if(i!=leftbatch.size()-1 && j == rightMatches.size()-1){//case 2: current left batch in buffer is fully processed and all matching tuples aded
-                                    lcurs = i+1;
-                                    rcurs=0;
-                                    rightMatches.clear();
                                 } else { //case 3: some matching tuples in right table not added 
                                     lcurs = i;
                                     rcurs = j+1;
@@ -150,8 +143,9 @@ public class IndexNested extends Join{
                             }
                         }
                         
-                    }
-                }                  
+                    }                 
+                }     
+               rcurs = 0;
             }
             lcurs = 0;
         }

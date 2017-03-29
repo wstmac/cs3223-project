@@ -14,11 +14,12 @@ public class HashIndex {
     
     public void add(Object key, Tuple value) {
         Vector<Tuple> currentRecords = index.get(key);
-        if (currentRecords == null) {
+        if (currentRecords == null || currentRecords.isEmpty()) {
             currentRecords = new Vector<Tuple>();
             index.put(key, currentRecords);
         }
         currentRecords.add(value);
+        index.put(key, currentRecords);
     }
     
     //
