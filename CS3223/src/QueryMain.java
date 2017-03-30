@@ -105,7 +105,6 @@ public class QueryMain{
 
 		/** This part is used When some random initial plan is required instead of comple optimized plan **/
 		/**
-
 	RandomInitialPlan rip = new RandomInitialPlan(sqlquery);
 	Operator logicalroot = rip.prepareInitialPlan();
 	PlanCost pc = new PlanCost();
@@ -120,12 +119,13 @@ public class QueryMain{
 	    execution plan
 		 **/
 
-		System.out.println("numJoin is: "+numJoin);
+		//System.out.println("numJoin is: "+numJoin);
 		Operator root = null;
-		if (numJoin > 0) {// DynamicProgrammingOptimizer
+		if (numJoin >= 0) {// DynamicProgrammingOptimizer
 			DynamicOptimizer dynamicOptimizer = new DynamicOptimizer(
 					sqlquery);
 			Operator logicalroot = dynamicOptimizer.getOptimalPlan();
+			//System.out.println("execution root join type is: "+(logicalroot).getOpType());
 			if (logicalroot == null) {
 				System.out.println("root is null");
 				System.exit(1);
@@ -142,22 +142,10 @@ public class QueryMain{
 		}
 
 
-//		RandomOptimizer ro = new RandomOptimizer(sqlquery);
-//		Operator logicalroot = ro.getOptimizedPlan();
-//		if(logicalroot==null){
-//			System.out.println("root is null");
-//			System.exit(1);
-//		}
-//
-//
-//
-//		/** preparing the execution plan **/
-//
-//		Operator root = RandomOptimizer.makeExecPlan(logicalroot);
-		
-		//===================================================================//
-		
 
+
+		
+		
 		/** Print final Plan **/
 		System.out.println("----------------------Execution Plan----------------");
 		Debug.PPrint(root);
@@ -213,6 +201,7 @@ public class QueryMain{
 				printTuple(resultbatch.elementAt(i));
 			}
 		}
+		//System.out.println("root type is "+root.getOpType());
 		root.close();
 		out.close();
 
@@ -246,10 +235,3 @@ public class QueryMain{
 	}
 
 }
-
-
-
-
-
-
-

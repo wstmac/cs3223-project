@@ -47,6 +47,9 @@ public class DynamicOptimizer {
 				Set<String> curSubset = allSubset.get(j);
 				String[] curSubsetArray = curSubset.toArray(new String[0]);
 				Operator curRoot = getBestPlan(curSubsetArray);
+				if(curRoot==null){
+					continue;
+				}
 				Set<String> tableNames = new HashSet<String>();
 				for (int k = 0; k <= i; k++) {
 					tableNames.add(curSubsetArray[k]);
@@ -57,6 +60,7 @@ public class DynamicOptimizer {
 		return createProjectOp(getLastRoot());
 	}
 	
+	//get the root of final plan
 	private Operator getLastRoot(){
 		Set<String> tables = new HashSet<String>();
 		for (int i = 0; i < this.sqlquery.getFromList().size(); i++) {
@@ -64,6 +68,7 @@ public class DynamicOptimizer {
 		}
 		return planSpace.elementAt(numTable - 1).get(tables);
 	}
+	
 	
 	private Operator createProjectOp(Operator root){
 		Vector<Attribute> projectlist = (Vector<Attribute>) sqlquery.getProjectList();
@@ -105,12 +110,10 @@ public class DynamicOptimizer {
 	
 			case JoinType.BLOCKNESTED:
 	
-				// NestedJoin bj2 = new NestedJoin((Join) node);
 				BlockNested bj = new BlockNested((Join) node);
 				bj.setLeft(left);
 				bj.setRight(right);
 				bj.setNumBuff(numbuff);
-				/* + other code */
 				return bj;
 				
 			case JoinType.INDEXNESTED:
@@ -123,13 +126,15 @@ public class DynamicOptimizer {
 	
 			case JoinType.SORTMERGE:
 	
-				NestedJoin sm = new NestedJoin((Join) node);
-				/* + other code */
+				SortMergeJoin sm = new SortMergeJoin((Join) node);
+				sm.setLeft(left);
+				sm.setRight(right);
+				sm.setNumBuff(numbuff);
 				return sm;
 	
 			case JoinType.HASHJOIN:
 	
-				NestedJoin hj = new NestedJoin((Join) node);
+				HashJoin hj = new HashJoin((Join) node);
 				hj.setLeft(left);
 				hj.setRight(right);
 				hj.setNumBuff(numbuff);
@@ -191,7 +196,6 @@ public class DynamicOptimizer {
 		int size = subset.length;
 		int bestPlanCost = Integer.MAX_VALUE;
 		Operator curRoot = null;
-		
 		//for each table Ti in subset S, compute the cost of Ti join with S-Ti; get the smallest cost
 		for (int i = 0; i < size; i++) {
 
@@ -205,11 +209,17 @@ public class DynamicOptimizer {
 				if (j != i)
 					restTables.add(subset[j]);
 			}
+			
+			//get the root of set S-Ti
 			Operator preRoot = planSpace.elementAt(size - 2).get(restTables);
+
 			if (preRoot == null) {
+				//System.out.println("preRoot is null");
 				continue;
 			}
 
+			
+			//get join condition with Ti and S-Ti
 			condition = getJoinCondition(preRoot, oneTable);
 			int plancost;
 			PlanCost pc = new PlanCost();
@@ -217,7 +227,6 @@ public class DynamicOptimizer {
 				Join newJoin = new Join(preRoot, planSpace.elementAt(0).get(oneTable), condition, OpType.JOIN);
 				Schema newSchema = preRoot.getSchema().joinWith(planSpace.elementAt(0).get(oneTable).getSchema());
 				newJoin.setSchema(newSchema);
-
 	
 				int curCost = 0;
 				plancost = Integer.MAX_VALUE;
@@ -230,7 +239,7 @@ public class DynamicOptimizer {
 					plancost = curCost;
 					type = JoinType.BLOCKNESTED;
 				}
-	
+
 				newJoin.setJoinType(JoinType.NESTEDJOIN);
 				pc = new PlanCost();
 				curCost = pc.getCost(newJoin);
@@ -271,15 +280,9 @@ public class DynamicOptimizer {
 				}
 			}
 		}
-		System.out.print("subset size " + size + "----for subset[ ");
-		for (int t=0; t<subset.length; t++){
-			System.out.print(subset[t] + " ");
-		}
-		System.out.println("]");
 		return curRoot;
 	}
 	
-	//get left deep tree
 	private Condition getJoinCondition(Operator preRoot, Set<String> oneTable) {
 		for (int i = 0; i < this.sqlquery.getJoinList().size(); i++) {
 			Condition con = (Condition) this.sqlquery.getJoinList().elementAt(i);

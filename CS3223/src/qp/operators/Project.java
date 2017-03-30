@@ -54,7 +54,7 @@ public class Project extends Operator{
 	/** setnumber of tuples per batch **/
 	int tuplesize = schema.getTupleSize();
 	batchsize=Batch.getPageSize()/tuplesize;
-
+	//System.out.println("base type is: "+base.getOpType());
 
 	/** The followingl loop findouts the index of the columns that
 	 ** are required from the base operator
@@ -116,13 +116,12 @@ public class Project extends Operator{
 
     /** Close the operator */
     public boolean close(){
-		return true;
-		/*
+
+
 	if(base.close())
 	    return true;
 	else
 	    return false;
-	    **/
     }
 
 

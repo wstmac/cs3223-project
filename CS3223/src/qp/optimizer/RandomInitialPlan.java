@@ -149,6 +149,7 @@ public class RandomInitialPlan{
     public void createJoinOp(){
 	BitSet bitCList = new BitSet(numJoin);
 	int jnnum = RandNumb.randInt(0,numJoin-1);
+
 	Join jn=null;
 	/** Repeat until all the join conditions are considered **/
 	while(bitCList.cardinality() != numJoin){
